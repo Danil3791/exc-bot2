@@ -1,24 +1,30 @@
+import os
+import json
 import requests
 import time
 import threading
 
-# 🔧 Настройки Telegram
-TELEGRAM_TOKEN = "7618687590:AAH7tyDsI5WrRK7h_EQUusE2ziUlt6ijhk4"
-ADMIN_ID = 5496665478
-API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+# 📁 Загружаем настройки из settings.json, если файл существует
+if os.path.exists("settings.json"):
+    with open("settings.json", "r") as f:
+        SETTINGS = json.load(f)
+else:
+    SETTINGS = {
+        "threshold": 6.0,
+        "poll_interval": 10,
+        "monitoring": False
+    }
 
-# ⚙️ Настройки мониторинга
-SETTINGS = {
-    "threshold": 6.0,       # % изменение для сигнала
-    "poll_interval": 10,    # как часто проверять (сек)
-    "monitoring": False
-}
+# 🔐 Безопасная загрузка токена и ID из переменных окружения
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))  # если нет, будет 0
+API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 last_update_id = 0
 last_prices = {}
 
 
-# 📩 Отправка сообщений
+# 📩 Отправка сообщений в Telegram
 def send_message(chat_id, text):
     try:
         requests.post(f"{API_URL}/sendMessage", data={"chat_id": chat_id, "text": text})
@@ -26,7 +32,7 @@ def send_message(chat_id, text):
         print(f"Ошибка отправки: {e}")
 
 
-# 📨 Получение апдейтов из Telegram
+# 📨 Получение апдейтов
 def get_updates(offset=None):
     try:
         resp = requests.get(f"{API_URL}/getUpdates", params={"timeout": 100, "offset": offset})
@@ -36,30 +42,16 @@ def get_updates(offset=None):
         return {}
 
 
-# 📊 Получение тикеров с фьючерсов MEXC
+# 📊 Получение фьючерсов MEXC
 def get_mexc_futures_tickers():
-    """
-    Получаем все USDT-пары с фьючерсов MEXC (USDT-M)
-    """
     try:
         url = "https://contract.mexc.com/api/v1/contract/ticker"
-        res = requests.get(url, timeout=10)
-
+        res = requests.get(url, timeout=15)
         if res.status_code != 200:
             print(f"Ошибка MEXC Futures API: статус {res.status_code}")
             return []
-
         data = res.json().get("data", [])
-        filtered = []
-
-        for t in data:
-            symbol = t.get("symbol", "")
-            if not symbol.endswith("_USDT"):
-                continue  # только USDT контракты
-            filtered.append(t)
-
-        return filtered
-
+        return [t for t in data if t.get("symbol", "").endswith("_USDT")]
     except Exception as e:
         print(f"Ошибка MEXC Futures API: {e}")
         return []
@@ -96,7 +88,7 @@ def monitor_market():
         time.sleep(SETTINGS["poll_interval"])
 
 
-# ⚙️ Команды Telegram
+# ⚙️ Обработка команд
 def handle_command(text):
     global SETTINGS
 
@@ -133,12 +125,15 @@ def handle_command(text):
         except ValueError:
             return "Некорректное значение."
         SETTINGS[key] = value
+        # сохраняем настройки в файл
+        with open("settings.json", "w") as f:
+            json.dump(SETTINGS, f, indent=4)
         return f"✅ {key} обновлён на {value}"
 
     elif cmd == "/help":
         return (
             "📘 Команды:\n"
-            "/start — запустить мониторинг фьючерсов\n"
+            "/start — запустить мониторинг\n"
             "/stop — остановить мониторинг\n"
             "/settings — показать текущие настройки\n"
             "/set параметр значение — изменить параметр\n"
@@ -150,7 +145,7 @@ def handle_command(text):
         return "❓ Неизвестная команда. Введи /help."
 
 
-# 🚀 Основной цикл
+# 🚀 Основной цикл Telegram-бота
 def main():
     global last_update_id
     print("🚀 Бот запущен и ждёт команд в Telegram...")
