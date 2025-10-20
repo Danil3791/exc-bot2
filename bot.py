@@ -17,8 +17,8 @@ else:
 
 # 🔐 Безопасная загрузка токена и ID из переменных окружения
 TELEGRAM_TOKEN = os.getenv("7618687590:AAH7tyDsI5WrRK7h_EQUusE2ziUlt6ijhk4")
-ADMIN_ID = int(os.getenv("5496665478"))  # если нет, будет 0
-API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+ADMIN_ID = int(os.getenv("5496665478", 0))  # если нет, будет 0
+API_URL = f""https://api.telegram.org/bot7618687590:AAH7tyDsI5WrRK7h_EQUusE2ziUlt6ijhk4""
 
 last_update_id = 0
 last_prices = {}
